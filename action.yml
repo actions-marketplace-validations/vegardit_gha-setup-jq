@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: © Vegard IT GmbH (https://vegardit.com) and contributors
+# SPDX-FileContributor: Sebastian Thomschke, Vegard IT GmbH
+# SPDX-License-Identifier: Apache-2.0
+#
+# https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
+name: (Yet Another) Setup jq
+description: Installs the jq command-line JSON parser/processor on Linux, macOS and Windows runners
+author: Vegard IT GmbH (https://vegardit.com)
+branding:
+  color: green
+  icon: package
+
+inputs:
+  version:
+    default: any
+    description: "jq version to install: 'any', 'latest', or a version number, e.g. '1.6'"
+  use-cache:
+    default: 'true'
+    description: if the downloaded jq binary should be cached using the GHA caching service 
+
+outputs:
+  path:
+    value: ${{ steps.JQ-SETUP.outputs.path }}
+    description: Path to the jq executable
+  version:
+    value: ${{ steps.JQ-SETUP.outputs.version }}
+    description: Version of the installed jq program
+
+runs:
+  using: 'composite'
+  steps:
+  
+    ##################################################
+    # Setup Cache
+    ##################################################
+    - name: 'jq: cache restore'
+      id: JQ-CACHE
+      if: ${{ (inputs.use-cache == true || inputs.use-cache == 'true') && !env.ACT }} # https://github.com/nektos/act#skipping-steps
+      uses: actions/cache/restore@v3 # https://github.com/actions/cache/tree/main/restore
+      with:
+        path: ${{ runner.temp }}/jq
+        key: ${{ runner.os }}-jq-${{ inputs.version }}
+
+    ##################################################
+    # Install jq
+    ##################################################
+    - name: 'jq: setup'
+      id: JQ-SETUP
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }} # required by "gh actions-cache delete"
+      run: |
+        echo '::group::setup: jq'
+        INPUTS_VERSION='${{ inputs.version }}'
+        INPUTS_UPDATE_CHECK='${{ inputs.update-check }}'
+        INPUTS_USE_CACHE='${{ inputs.use-cache }}'
+        CACHE_HIT='${{ steps.JQ-CACHE.outputs.cache-hit }}'
+        CACHE_CACHE_KEY='${{ steps.JQ-CACHE.outputs.cache-primary-key }}'
+        source gha-setup-jq.sh
+        echo '::endgroup::'
+
+    - name: 'jq: cache update'
+      uses: actions/cache/save@v3
+      if: ${{ steps.YQ-SETUP.outputs.need_cache_update == 'true' }}
+      with:
+        path: ${{ runner.temp }}/jq
+        key: ${{ steps.JQ-CACHE.outputs.cache-primary-key }}
